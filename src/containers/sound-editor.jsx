@@ -45,11 +45,13 @@ class SoundEditor extends React.Component {
             'handleKeyPress',
             'handleContainerClick',
             'setRef',
+            'handleToggleSpectrogram',
             'resampleBufferToRate'
         ]);
         this.state = {
             copyBuffer: null,
             chunkLevels: computeChunkedRMS(this.props.samples),
+            viewMode: 'waveform',
             playhead: null, // null is not playing, [0 -> 1] is playing percent
             trimStart: null,
             trimEnd: null
@@ -80,6 +82,12 @@ class SoundEditor extends React.Component {
         this.audioBufferPlayer.stop();
 
         document.removeEventListener('keydown', this.handleKeyPress);
+    }
+    handleToggleSpectrogram () {
+        this.setState(state => {
+            const order = ['waveform', 'detailed', 'spectrogram'];
+            return {viewMode: order[(order.indexOf(state.viewMode) + 1) % order.length]};
+        });
     }
     handleKeyPress (event) {
         if (event.target instanceof HTMLInputElement) {
@@ -445,6 +453,10 @@ class SoundEditor extends React.Component {
                 canRedo={this.redoStack.length > 0}
                 canUndo={this.undoStack.length > 0}
                 chunkLevels={this.state.chunkLevels}
+                samples={this.props.samples}
+                sampleRate={this.props.sampleRate}
+                viewMode={this.state.viewMode}
+                onToggleSpectrogram={this.handleToggleSpectrogram}
                 name={this.props.name}
                 playhead={this.state.playhead}
                 setRef={this.setRef}

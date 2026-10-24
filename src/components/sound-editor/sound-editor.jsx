@@ -4,6 +4,8 @@ import classNames from 'classnames';
 import {defineMessages, FormattedMessage, injectIntl, intlShape} from 'react-intl';
 
 import Waveform from '../waveform/waveform.jsx';
+import Spectrogram from '../spectrogram/spectrogram.jsx';
+import DetailedWaveform from '../detailed-waveform/detailed-waveform.jsx';
 import Label from '../forms/label.jsx';
 import Input from '../forms/input.jsx';
 import TWRenderRecoloredImage from '../../lib/tw-recolor/render.jsx';
@@ -251,11 +253,28 @@ const SoundEditor = props => (
         </div>
         <div className={styles.row}>
             <div className={styles.waveformContainer}>
-                <Waveform
-                    data={props.chunkLevels}
-                    height={160}
-                    width={600}
-                />
+                {props.viewMode === 'spectrogram' && (
+                    <Spectrogram
+                        samples={props.samples}
+                        sampleRate={props.sampleRate}
+                        height={160}
+                        width={600}
+                    />
+                )}
+                {props.viewMode === 'detailed' && (
+                    <DetailedWaveform
+                        samples={props.samples}
+                        height={320}
+                        width={1200}
+                    />
+                )}
+                {props.viewMode === 'waveform' && (
+                    <Waveform
+                        data={props.chunkLevels}
+                        height={160}
+                        width={600}
+                    />
+                )}
                 <AudioSelector
                     playhead={props.playhead}
                     trimEnd={props.trimEnd}
@@ -360,6 +379,13 @@ const SoundEditor = props => (
             <div className={styles.duration}>
                 {formatDuration(props.playhead, props.trimStart, props.trimEnd, props.duration)}
             </div>
+            <button
+                className={styles.button}
+                title="Switch view: Waveform / Detailed / Spectrogram"
+                onClick={props.onToggleSpectrogram}
+            >
+                {{waveform: 'Waveform', detailed: 'Detailed', spectrogram: 'Spectrogram'}[props.viewMode]}
+            </button>
             <div className={styles.advancedInfo}>
                 {props.isStereo ? (
                     <FormattedMessage
@@ -430,6 +456,10 @@ SoundEditor.propTypes = {
     onSofter: PropTypes.func.isRequired,
     onStop: PropTypes.func.isRequired,
     onUndo: PropTypes.func.isRequired,
+    onToggleSpectrogram: PropTypes.func,
+    sampleRate: PropTypes.number,
+    samples: PropTypes.instanceOf(Float32Array),
+    viewMode: PropTypes.oneOf(['waveform', 'detailed', 'spectrogram']),
     playhead: PropTypes.number,
     setRef: PropTypes.func,
     tooLoud: PropTypes.bool.isRequired,

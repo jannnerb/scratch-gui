@@ -23,6 +23,11 @@ export default class Utils {
      * The workspace
      */
     this._workspace = null;
+    /**
+     * Incremented for every scroll request so that a slow, stale request (e.g. one waiting for a sprite's
+     * workspace to finish loading) can't override a newer one.
+     */
+    this._scrollToken = 0;
   }
 
   /**
@@ -40,6 +45,28 @@ export default class Utils {
   setEditingTarget(targetID) {
     if (this.getEditingTarget().id !== targetID) {
       this.vm.setEditingTarget(targetID);
+    }
+  }
+
+  /**
+   * Get the display name of a sprite (or the stage) from its target id
+   * @param targetID {string}
+   * @returns {string}
+   */
+  getTargetName(targetID) {
+    const target = this.vm.runtime.getTargetById(targetID);
+    return target && target.getName ? target.getName() : "";
+  }
+
+  /**
+   * Resolves after the given number of animation frames. Used to let the editor (React) catch up after
+   * switching sprites.
+   * @param count {number}
+   * @returns {Promise<void>}
+   */
+  async nextFrames(count = 1) {
+    for (let i = 0; i < count; i++) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
     }
   }
 
@@ -62,22 +89,59 @@ export default class Utils {
    * @param blockOrId {Blockly.Block|{id}|BlockInstance} A Blockly Block, a block id, or a BlockInstance
    */
   scrollBlockIntoView(blockOrId) {
-    let workspace = this.getWorkspace();
-    /** @type {Blockly.Block} */
-    let block; // or is it really a Blockly.BlockSvg?
+    const token = ++this._scrollToken;
 
     if (blockOrId instanceof BlockInstance) {
-      // Switch to sprite
+      // Switch to sprite. This reloads the workspace, which can take a moment, so wait for the block to exist.
+      const switching = this.getEditingTarget().id !== blockOrId.targetId;
       this.setEditingTarget(blockOrId.targetId);
-      // Highlight the block!
-      block = workspace.getBlockById(blockOrId.id);
-    } else {
-      block = blockOrId && blockOrId.id ? blockOrId : workspace.getBlockById(blockOrId);
-    }
-
-    if (!block) {
+      this._whenBlockReady(blockOrId.id, switching, token, (block) => this._scrollToBlock(block));
       return;
     }
+
+    const workspace = this.getWorkspace();
+    const block = blockOrId && blockOrId.id ? blockOrId : workspace.getBlockById(blockOrId);
+    if (block) {
+      this._scrollToBlock(block);
+    }
+  }
+
+  /**
+   * Wait for a block to appear in the main workspace (it won't be there until a sprite switch has finished
+   * loading), then call back with it. Gives up after about a second and a half.
+   * @private
+   */
+  _whenBlockReady(id, waitFirstFrame, token, callback) {
+    let tries = 0;
+    const attempt = () => {
+      if (token !== this._scrollToken) {
+        return; // A newer request replaced this one
+      }
+      const workspace = this.getWorkspace();
+      const block = workspace && workspace.getBlockById(id);
+      if (block) {
+        callback(block);
+        return;
+      }
+      if (++tries > 90) {
+        return;
+      }
+      requestAnimationFrame(attempt);
+    };
+    if (waitFirstFrame) {
+      requestAnimationFrame(attempt);
+    } else {
+      attempt();
+    }
+  }
+
+  /**
+   * Scroll the workspace so that a block is visible, then flash it
+   * @param block {Blockly.Block}
+   * @private
+   */
+  _scrollToBlock(block) {
+    const workspace = this.getWorkspace();
 
     /**
      * !Blockly.Block

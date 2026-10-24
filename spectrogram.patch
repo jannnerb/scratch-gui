@@ -1,0 +1,329 @@
+diff --git a/src/components/sound-editor/sound-editor.jsx b/src/components/sound-editor/sound-editor.jsx
+index 82f895d..342381f 100644
+--- a/src/components/sound-editor/sound-editor.jsx
++++ b/src/components/sound-editor/sound-editor.jsx
+@@ -4,6 +4,7 @@ import classNames from 'classnames';
+ import {defineMessages, FormattedMessage, injectIntl, intlShape} from 'react-intl';
+ 
+ import Waveform from '../waveform/waveform.jsx';
++import Spectrogram from '../spectrogram/spectrogram.jsx';
+ import Label from '../forms/label.jsx';
+ import Input from '../forms/input.jsx';
+ import TWRenderRecoloredImage from '../../lib/tw-recolor/render.jsx';
+@@ -251,11 +252,20 @@ const SoundEditor = props => (
+         </div>
+         <div className={styles.row}>
+             <div className={styles.waveformContainer}>
+-                <Waveform
+-                    data={props.chunkLevels}
+-                    height={160}
+-                    width={600}
+-                />
++                {props.showSpectrogram ? (
++                    <Spectrogram
++                        samples={props.samples}
++                        sampleRate={props.sampleRate}
++                        height={160}
++                        width={600}
++                    />
++                ) : (
++                    <Waveform
++                        data={props.chunkLevels}
++                        height={160}
++                        width={600}
++                    />
++                )}
+                 <AudioSelector
+                     playhead={props.playhead}
+                     trimEnd={props.trimEnd}
+@@ -360,6 +370,13 @@ const SoundEditor = props => (
+             <div className={styles.duration}>
+                 {formatDuration(props.playhead, props.trimStart, props.trimEnd, props.duration)}
+             </div>
++            <button
++                className={styles.button}
++                title="Toggle waveform / spectrogram"
++                onClick={props.onToggleSpectrogram}
++            >
++                {props.showSpectrogram ? 'Waveform' : 'Spectrogram'}
++            </button>
+             <div className={styles.advancedInfo}>
+                 {props.isStereo ? (
+                     <FormattedMessage
+@@ -430,6 +447,10 @@ SoundEditor.propTypes = {
+     onSofter: PropTypes.func.isRequired,
+     onStop: PropTypes.func.isRequired,
+     onUndo: PropTypes.func.isRequired,
++    onToggleSpectrogram: PropTypes.func,
++    sampleRate: PropTypes.number,
++    samples: PropTypes.instanceOf(Float32Array),
++    showSpectrogram: PropTypes.bool,
+     playhead: PropTypes.number,
+     setRef: PropTypes.func,
+     tooLoud: PropTypes.bool.isRequired,
+diff --git a/src/components/spectrogram/spectrogram.css b/src/components/spectrogram/spectrogram.css
+new file mode 100644
+index 0000000..55e1694
+--- /dev/null
++++ b/src/components/spectrogram/spectrogram.css
+@@ -0,0 +1,5 @@
++.container {
++    width: 100%;
++    display: block;
++    border-radius: 4px;
++}
+diff --git a/src/components/spectrogram/spectrogram.jsx b/src/components/spectrogram/spectrogram.jsx
+new file mode 100644
+index 0000000..fcd38e6
+--- /dev/null
++++ b/src/components/spectrogram/spectrogram.jsx
+@@ -0,0 +1,121 @@
++import React from 'react';
++import PropTypes from 'prop-types';
++import {FFT_SIZE, computeSpectrogram} from '../../lib/audio/spectrum.js';
++import styles from './spectrogram.css';
++
++const MIN_FREQ = 20;
++const DB_MIN = -90;
++const DB_MAX = 0;
++const GRID_FREQS = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
++
++// dB -> RGB (black -> purple -> pink -> yellow -> white)
++const STOPS = [
++    [0, [8, 0, 24]],
++    [0.3, [90, 20, 140]],
++    [0.6, [220, 60, 150]],
++    [0.85, [255, 210, 80]],
++    [1, [255, 255, 255]]
++];
++const colorFor = t => {
++    t = Math.min(1, Math.max(0, t));
++    for (let i = 1; i < STOPS.length; i++) {
++        if (t <= STOPS[i][0]) {
++            const [t0, c0] = STOPS[i - 1];
++            const [t1, c1] = STOPS[i];
++            const f = (t - t0) / (t1 - t0);
++            return [
++                c0[0] + ((c1[0] - c0[0]) * f),
++                c0[1] + ((c1[1] - c0[1]) * f),
++                c0[2] + ((c1[2] - c0[2]) * f)
++            ];
++        }
++    }
++    return STOPS[STOPS.length - 1][1];
++};
++
++class Spectrogram extends React.PureComponent {
++    constructor (props) {
++        super(props);
++        this.canvas = null;
++        this.setCanvas = c => {
++            this.canvas = c;
++        };
++    }
++    componentDidMount () {
++        this.draw();
++    }
++    componentDidUpdate () {
++        this.draw();
++    }
++    draw () {
++        const canvas = this.canvas;
++        if (!canvas) return;
++        const {samples, sampleRate, width, height} = this.props;
++        const ctx = canvas.getContext('2d');
++        const image = ctx.createImageData(width, height);
++        const nyquist = sampleRate / 2;
++        const maxFreq = Math.min(20000, nyquist);
++        const logMin = Math.log(MIN_FREQ);
++        const logRange = Math.log(maxFreq) - logMin;
++        const bins = FFT_SIZE / 2;
++        const spec = computeSpectrogram(samples, width);
++
++        // Precompute fractional bin per row (log frequency axis, low freq at bottom).
++        const rowBin = new Float32Array(height);
++        for (let y = 0; y < height; y++) {
++            const freq = Math.exp(logMin + (logRange * (1 - (y / (height - 1)))));
++            rowBin[y] = Math.min(bins - 1.001, (freq / nyquist) * bins);
++        }
++        for (let x = 0; x < width; x++) {
++            const col = spec[x];
++            for (let y = 0; y < height; y++) {
++                const b = rowBin[y];
++                const i0 = Math.floor(b);
++                const f = b - i0;
++                const db = (col[i0] * (1 - f)) + (col[i0 + 1] * f);
++                const [r, g, bl] = colorFor((db - DB_MIN) / (DB_MAX - DB_MIN));
++                const o = ((y * width) + x) * 4;
++                image.data[o] = r;
++                image.data[o + 1] = g;
++                image.data[o + 2] = bl;
++                image.data[o + 3] = 255;
++            }
++        }
++        ctx.putImageData(image, 0, 0);
++
++        // Frequency gridlines + labels
++        ctx.font = '10px sans-serif';
++        ctx.textBaseline = 'bottom';
++        for (const f of GRID_FREQS) {
++            if (f > maxFreq || f < MIN_FREQ) continue;
++            const y = Math.round((1 - ((Math.log(f) - logMin) / logRange)) * (height - 1)) + 0.5;
++            ctx.strokeStyle = 'rgba(255,255,255,0.18)';
++            ctx.beginPath();
++            ctx.moveTo(0, y);
++            ctx.lineTo(width, y);
++            ctx.stroke();
++            ctx.fillStyle = 'rgba(255,255,255,0.85)';
++            ctx.fillText(f >= 1000 ? `${f / 1000}k` : `${f}`, 3, y - 1);
++        }
++    }
++    render () {
++        const {width, height} = this.props;
++        return (
++            <canvas
++                className={styles.container}
++                ref={this.setCanvas}
++                width={width}
++                height={height}
++            />
++        );
++    }
++}
++
++Spectrogram.propTypes = {
++    height: PropTypes.number,
++    sampleRate: PropTypes.number,
++    samples: PropTypes.instanceOf(Float32Array),
++    width: PropTypes.number
++};
++
++export default Spectrogram;
+diff --git a/src/containers/sound-editor.jsx b/src/containers/sound-editor.jsx
+index 945ddf0..22f111e 100644
+--- a/src/containers/sound-editor.jsx
++++ b/src/containers/sound-editor.jsx
+@@ -45,11 +45,13 @@ class SoundEditor extends React.Component {
+             'handleKeyPress',
+             'handleContainerClick',
+             'setRef',
++            'handleToggleSpectrogram',
+             'resampleBufferToRate'
+         ]);
+         this.state = {
+             copyBuffer: null,
+             chunkLevels: computeChunkedRMS(this.props.samples),
++            showSpectrogram: false,
+             playhead: null, // null is not playing, [0 -> 1] is playing percent
+             trimStart: null,
+             trimEnd: null
+@@ -81,6 +83,9 @@ class SoundEditor extends React.Component {
+ 
+         document.removeEventListener('keydown', this.handleKeyPress);
+     }
++    handleToggleSpectrogram () {
++        this.setState(state => ({showSpectrogram: !state.showSpectrogram}));
++    }
+     handleKeyPress (event) {
+         if (event.target instanceof HTMLInputElement) {
+             // Ignore keyboard shortcuts if a text input field is focused
+@@ -445,6 +450,10 @@ class SoundEditor extends React.Component {
+                 canRedo={this.redoStack.length > 0}
+                 canUndo={this.undoStack.length > 0}
+                 chunkLevels={this.state.chunkLevels}
++                samples={this.props.samples}
++                sampleRate={this.props.sampleRate}
++                showSpectrogram={this.state.showSpectrogram}
++                onToggleSpectrogram={this.handleToggleSpectrogram}
+                 name={this.props.name}
+                 playhead={this.state.playhead}
+                 setRef={this.setRef}
+diff --git a/src/lib/audio/spectrum.js b/src/lib/audio/spectrum.js
+new file mode 100644
+index 0000000..5b7ccee
+--- /dev/null
++++ b/src/lib/audio/spectrum.js
+@@ -0,0 +1,83 @@
++// Small radix-2 FFT + spectrogram helpers for the sound editor.
++
++const FFT_SIZE = 2048;
++
++const hann = new Float32Array(FFT_SIZE);
++for (let i = 0; i < FFT_SIZE; i++) {
++    hann[i] = 0.5 - (0.5 * Math.cos((2 * Math.PI * i) / (FFT_SIZE - 1)));
++}
++
++const cosTable = new Float32Array(FFT_SIZE / 2);
++const sinTable = new Float32Array(FFT_SIZE / 2);
++for (let i = 0; i < FFT_SIZE / 2; i++) {
++    cosTable[i] = Math.cos((2 * Math.PI * i) / FFT_SIZE);
++    sinTable[i] = Math.sin((2 * Math.PI * i) / FFT_SIZE);
++}
++
++const reverse = new Uint16Array(FFT_SIZE);
++for (let i = 0, bits = Math.log2(FFT_SIZE); i < FFT_SIZE; i++) {
++    let r = 0;
++    for (let b = 0; b < bits; b++) r |= ((i >> b) & 1) << (bits - 1 - b);
++    reverse[i] = r;
++}
++
++// In-place FFT of length FFT_SIZE.
++const fft = (re, im) => {
++    for (let i = 0; i < FFT_SIZE; i++) {
++        const j = reverse[i];
++        if (j > i) {
++            let t = re[i]; re[i] = re[j]; re[j] = t;
++            t = im[i]; im[i] = im[j]; im[j] = t;
++        }
++    }
++    for (let size = 2; size <= FFT_SIZE; size <<= 1) {
++        const half = size >> 1;
++        const step = FFT_SIZE / size;
++        for (let start = 0; start < FFT_SIZE; start += size) {
++            for (let k = 0, t = 0; k < half; k++, t += step) {
++                const a = start + k;
++                const b = a + half;
++                const tr = (re[b] * cosTable[t]) + (im[b] * sinTable[t]);
++                const ti = (im[b] * cosTable[t]) - (re[b] * sinTable[t]);
++                re[b] = re[a] - tr;
++                im[b] = im[a] - ti;
++                re[a] += tr;
++                im[a] += ti;
++            }
++        }
++    }
++};
++
++/**
++ * Compute a spectrogram.
++ * @param {Float32Array} samples mono samples
++ * @param {number} columns number of time columns (one per canvas pixel)
++ * @returns {Float32Array[]} per column, FFT_SIZE/2 magnitudes in dBFS (clamped >= -120)
++ */
++const computeSpectrogram = (samples, columns) => {
++    const bins = FFT_SIZE / 2;
++    const out = [];
++    const re = new Float32Array(FFT_SIZE);
++    const im = new Float32Array(FFT_SIZE);
++    for (let c = 0; c < columns; c++) {
++        // Center each window on the column's time position.
++        const center = Math.floor(((c + 0.5) / columns) * samples.length);
++        const start = center - (FFT_SIZE / 2);
++        for (let i = 0; i < FFT_SIZE; i++) {
++            const idx = start + i;
++            re[i] = (idx >= 0 && idx < samples.length ? samples[idx] : 0) * hann[i];
++            im[i] = 0;
++        }
++        fft(re, im);
++        const col = new Float32Array(bins);
++        for (let b = 0; b < bins; b++) {
++            // Normalize so a full-scale sine reads ~0 dB (Hann coherent gain 0.5).
++            const mag = Math.sqrt((re[b] * re[b]) + (im[b] * im[b])) / (FFT_SIZE * 0.25);
++            col[b] = Math.max(-120, 20 * Math.log10(mag + 1e-9));
++        }
++        out.push(col);
++    }
++    return out;
++};
++
++export {FFT_SIZE, computeSpectrogram};
