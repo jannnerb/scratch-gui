@@ -139,28 +139,6 @@ const CustomExtensionModal = props => (
                             id="tw.customExtensionModal.unsandboxed"
                         />
                     </label>
-                    <label className={styles.unsandboxedContainer}>
-                        <FancyCheckbox
-                            className={styles.unsandboxedCheckbox}
-                            checked={props.trustAll}
-                            onChange={props.onChangeTrustAll}
-                        />
-                        <FormattedMessage
-                            defaultMessage="Run all other project extensions without sandbox"
-                            description="Message that appears in custom extension prompt"
-                            id="tw.customExtensionModal.trustAll"
-                        />
-                    </label>
-                    {props.trustAll && (
-                        <p className={styles.unsandboxedWarning}>
-                            <FormattedMessage
-                                // eslint-disable-next-line max-len
-                                defaultMessage="Every extension, including ones inside projects you open, will load without the sandbox and without asking. Only keep this on for projects you trust."
-                                description="Warning that appears when trusting all extensions"
-                                id="tw.customExtensionModal.trustAllWarning"
-                            />
-                        </p>
-                    )}
                     {props.unsandboxed && (
                         <p className={styles.unsandboxedWarning}>
                             <FormattedMessage
@@ -182,49 +160,25 @@ const CustomExtensionModal = props => (
                     )}
                 </React.Fragment>
             ) : (
-                <React.Fragment>
-                    <label className={styles.unsandboxedContainer}>
-                        <FancyCheckbox
-                            className={styles.unsandboxedCheckbox}
-                            checked={props.trustAll}
-                            onChange={props.onChangeTrustAll}
-                        />
+                props.unsandboxed ? (
+                    <p className={styles.trustedExtension}>
                         <FormattedMessage
-                            defaultMessage="Run all other project extensions without sandbox"
+                            // eslint-disable-next-line max-len
+                            defaultMessage="This extension will be loaded without the sandbox because it is from a trusted source."
                             description="Message that appears in custom extension prompt"
-                            id="tw.customExtensionModal.trustAll"
+                            id="tw.customExtensionModal.trusted"
                         />
-                    </label>
-                    {props.trustAll && (
-                        <p className={styles.unsandboxedWarning}>
-                            <FormattedMessage
-                                // eslint-disable-next-line max-len
-                                defaultMessage="Every extension, including ones inside projects you open, will load without the sandbox and without asking. Only keep this on for projects you trust."
-                                description="Warning that appears when trusting all extensions"
-                                id="tw.customExtensionModal.trustAllWarning"
-                            />
-                        </p>
-                    )}
-                    props.unsandboxed ? (
-                        <p className={styles.trustedExtension}>
-                            <FormattedMessage
-                                // eslint-disable-next-line max-len
-                                defaultMessage="This extension will be loaded without the sandbox because it is from a trusted source."
-                                description="Message that appears in custom extension prompt"
-                                id="tw.customExtensionModal.trusted"
-                            />
-                        </p>
-                    ) : (
-                        <p>
-                            <FormattedMessage
-                                // eslint-disable-next-line max-len
-                                defaultMessage="Extensions from untrusted URLs will always be loaded with the sandbox for security."
-                                description="Message that appears in custom extension prompt"
-                                id="tw.customExtensionModal.untrusted"
-                            />
-                        </p>
-                    )
-                </React.Fragment>
+                    </p>
+                ) : (
+                    <p>
+                        <FormattedMessage
+                            // eslint-disable-next-line max-len
+                            defaultMessage="Extensions from untrusted URLs will always be loaded with the sandbox for security."
+                            description="Message that appears in custom extension prompt"
+                            id="tw.customExtensionModal.untrusted"
+                        />
+                    </p>
+                )
             )}
 
             <div className={styles.buttonRow}>
@@ -263,8 +217,6 @@ CustomExtensionModal.propTypes = {
     onChangeText: PropTypes.func.isRequired,
     unsandboxed: PropTypes.bool.isRequired,
     onChangeUnsandboxed: PropTypes.func,
-    trustAll: PropTypes.bool.isRequired,
-    onChangeTrustAll: PropTypes.func.isRequired,
     onLoadExtension: PropTypes.func.isRequired,
     onClose: PropTypes.func.isRequired
 };

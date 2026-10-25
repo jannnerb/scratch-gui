@@ -6,7 +6,6 @@ import bindAll from 'lodash.bindall';
 import SecurityManagerModal from '../components/tw-security-manager-modal/security-manager-modal.jsx';
 import SecurityModals from '../lib/tw-security-manager-constants';
 import {getPersistedUnsandboxed, setPersistedUnsandboxed} from '../lib/tw-persisted-unsandboxed.js';
-import {getTrustAllExtensions} from '../lib/tw-trust-all-extensions.js';
 
 /* eslint-disable require-atomic-updates */
 
@@ -150,11 +149,16 @@ class TWSecurityManagerComponent extends React.Component {
         super(props);
         bindAll(this, [
             'handleAllowed',
-            'handleDenied'
+            'handleDenied',
+            'handleChangeTrustRemaining',
+            'handleRuntimeDisposed'
         ]);
         bindAll(this, SECURITY_MANAGER_METHODS);
         this.nextModalCallbacks = [];
         this.modalLocked = false;
+        // When true, every further extension the project asks to load is allowed and run without the sandbox.
+        // Reset whenever a new project starts loading.
+        this.trustRemainingExtensions = false;
         this.state = {
             type: null,
             data: null,
@@ -164,6 +168,7 @@ class TWSecurityManagerComponent extends React.Component {
     }
 
     componentDidMount () {
+        this.props.vm.runtime.on('RUNTIME_DISPOSED', this.handleRuntimeDisposed);
         const vmSecurityManager = this.props.vm.extensionManager.securityManager;
         const propsSecurityManager = this.props.securityManager;
         for (const method of SECURITY_MANAGER_METHODS) {
@@ -222,6 +227,34 @@ class TWSecurityManagerComponent extends React.Component {
         };
     }
 
+    handleRuntimeDisposed () {
+        this.trustRemainingExtensions = false;
+    }
+
+    handleChangeTrustRemaining (e) {
+        const checked = e.target.checked;
+        this.setState(oldState => ({
+            data: {
+                ...oldState.data,
+                trustRemaining: checked
+            }
+        }));
+    }
+
+    /**
+     * Allows and unsandboxes an extension without asking, if the user chose to trust the rest of the project.
+     * @param {string} url Extension URL
+     * @returns {boolean} True if the extension was automatically allowed
+     */
+    autoAllowIfTrustingRemaining (url) {
+        if (!this.trustRemainingExtensions) {
+            return false;
+        }
+        log.info(`Loading extension ${url} automatically without sandbox (trusting rest of project)`);
+        manuallyTrustExtension(url);
+        return true;
+    }
+
     handleAllowed () {
         this.state.callback(true);
     }
@@ -235,7 +268,7 @@ class TWSecurityManagerComponent extends React.Component {
      * @returns {string} The VM worker mode to use
      */
     getSandboxMode (url) {
-        if (isTrustedExtension(url) || getTrustAllExtensions()) {
+        if (isTrustedExtension(url)) {
             log.info(`Loading extension ${url} unsandboxed`);
             return 'unsandboxed';
         }
@@ -257,16 +290,26 @@ class TWSecurityManagerComponent extends React.Component {
      * @returns {Promise<boolean>} Whether the extension can be loaded
      */
     async canLoadExtensionFromProject (url) {
-        if (isTrustedExtension(url) || getTrustAllExtensions()) {
+        if (isTrustedExtension(url)) {
             log.info(`Loading extension ${url} automatically`);
             return true;
         }
-        const {showModal} = await this.acquireModalLock();
+        if (this.autoAllowIfTrustingRemaining(url)) {
+            return true;
+        }
+        const {showModal, releaseLock} = await this.acquireModalLock();
+        // The user may have chosen to trust the rest of the project while we were waiting for the lock.
+        if (this.autoAllowIfTrustingRemaining(url)) {
+            releaseLock();
+            return true;
+        }
         if (url.startsWith('data:')) {
             const allowed = await showModal(SecurityModals.LoadExtension, {
                 url,
                 unsandboxed: getPersistedUnsandboxed(),
-                onChangeUnsandboxed: this.handleChangeUnsandboxed.bind(this)
+                onChangeUnsandboxed: this.handleChangeUnsandboxed.bind(this),
+                trustRemaining: false,
+                onChangeTrustRemaining: this.handleChangeTrustRemaining
             });
             if (allowed) {
                 setPersistedUnsandboxed(this.state.data.unsandboxed);
@@ -274,12 +317,21 @@ class TWSecurityManagerComponent extends React.Component {
             if (allowed && this.state.data.unsandboxed) {
                 manuallyTrustExtension(url);
             }
+            if (allowed && this.state.data.trustRemaining) {
+                this.trustRemainingExtensions = true;
+            }
             return allowed;
         }
-        return showModal(SecurityModals.LoadExtension, {
+        const allowed = await showModal(SecurityModals.LoadExtension, {
             url,
-            unsandboxed: false
+            unsandboxed: false,
+            trustRemaining: false,
+            onChangeTrustRemaining: this.handleChangeTrustRemaining
         });
+        if (allowed && this.state.data.trustRemaining) {
+            this.trustRemainingExtensions = true;
+        }
+        return allowed;
     }
 
     /**

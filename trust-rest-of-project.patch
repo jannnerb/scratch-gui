@@ -1,0 +1,420 @@
+diff --git a/src/components/tw-custom-extension-modal/custom-extension-modal.jsx b/src/components/tw-custom-extension-modal/custom-extension-modal.jsx
+index 6849423..a7854a6 100644
+--- a/src/components/tw-custom-extension-modal/custom-extension-modal.jsx
++++ b/src/components/tw-custom-extension-modal/custom-extension-modal.jsx
+@@ -139,28 +139,6 @@ const CustomExtensionModal = props => (
+                             id="tw.customExtensionModal.unsandboxed"
+                         />
+                     </label>
+-                    <label className={styles.unsandboxedContainer}>
+-                        <FancyCheckbox
+-                            className={styles.unsandboxedCheckbox}
+-                            checked={props.trustAll}
+-                            onChange={props.onChangeTrustAll}
+-                        />
+-                        <FormattedMessage
+-                            defaultMessage="Run all other project extensions without sandbox"
+-                            description="Message that appears in custom extension prompt"
+-                            id="tw.customExtensionModal.trustAll"
+-                        />
+-                    </label>
+-                    {props.trustAll && (
+-                        <p className={styles.unsandboxedWarning}>
+-                            <FormattedMessage
+-                                // eslint-disable-next-line max-len
+-                                defaultMessage="Every extension, including ones inside projects you open, will load without the sandbox and without asking. Only keep this on for projects you trust."
+-                                description="Warning that appears when trusting all extensions"
+-                                id="tw.customExtensionModal.trustAllWarning"
+-                            />
+-                        </p>
+-                    )}
+                     {props.unsandboxed && (
+                         <p className={styles.unsandboxedWarning}>
+                             <FormattedMessage
+@@ -182,49 +160,25 @@ const CustomExtensionModal = props => (
+                     )}
+                 </React.Fragment>
+             ) : (
+-                <React.Fragment>
+-                    <label className={styles.unsandboxedContainer}>
+-                        <FancyCheckbox
+-                            className={styles.unsandboxedCheckbox}
+-                            checked={props.trustAll}
+-                            onChange={props.onChangeTrustAll}
++                props.unsandboxed ? (
++                    <p className={styles.trustedExtension}>
++                        <FormattedMessage
++                            // eslint-disable-next-line max-len
++                            defaultMessage="This extension will be loaded without the sandbox because it is from a trusted source."
++                            description="Message that appears in custom extension prompt"
++                            id="tw.customExtensionModal.trusted"
+                         />
++                    </p>
++                ) : (
++                    <p>
+                         <FormattedMessage
+-                            defaultMessage="Run all other project extensions without sandbox"
++                            // eslint-disable-next-line max-len
++                            defaultMessage="Extensions from untrusted URLs will always be loaded with the sandbox for security."
+                             description="Message that appears in custom extension prompt"
+-                            id="tw.customExtensionModal.trustAll"
++                            id="tw.customExtensionModal.untrusted"
+                         />
+-                    </label>
+-                    {props.trustAll && (
+-                        <p className={styles.unsandboxedWarning}>
+-                            <FormattedMessage
+-                                // eslint-disable-next-line max-len
+-                                defaultMessage="Every extension, including ones inside projects you open, will load without the sandbox and without asking. Only keep this on for projects you trust."
+-                                description="Warning that appears when trusting all extensions"
+-                                id="tw.customExtensionModal.trustAllWarning"
+-                            />
+-                        </p>
+-                    )}
+-                    props.unsandboxed ? (
+-                        <p className={styles.trustedExtension}>
+-                            <FormattedMessage
+-                                // eslint-disable-next-line max-len
+-                                defaultMessage="This extension will be loaded without the sandbox because it is from a trusted source."
+-                                description="Message that appears in custom extension prompt"
+-                                id="tw.customExtensionModal.trusted"
+-                            />
+-                        </p>
+-                    ) : (
+-                        <p>
+-                            <FormattedMessage
+-                                // eslint-disable-next-line max-len
+-                                defaultMessage="Extensions from untrusted URLs will always be loaded with the sandbox for security."
+-                                description="Message that appears in custom extension prompt"
+-                                id="tw.customExtensionModal.untrusted"
+-                            />
+-                        </p>
+-                    )
+-                </React.Fragment>
++                    </p>
++                )
+             )}
+ 
+             <div className={styles.buttonRow}>
+@@ -263,8 +217,6 @@ CustomExtensionModal.propTypes = {
+     onChangeText: PropTypes.func.isRequired,
+     unsandboxed: PropTypes.bool.isRequired,
+     onChangeUnsandboxed: PropTypes.func,
+-    trustAll: PropTypes.bool.isRequired,
+-    onChangeTrustAll: PropTypes.func.isRequired,
+     onLoadExtension: PropTypes.func.isRequired,
+     onClose: PropTypes.func.isRequired
+ };
+diff --git a/src/components/tw-security-manager-modal/load-extension.jsx b/src/components/tw-security-manager-modal/load-extension.jsx
+index 48bf3be..9e46cc8 100644
+--- a/src/components/tw-security-manager-modal/load-extension.jsx
++++ b/src/components/tw-security-manager-modal/load-extension.jsx
+@@ -7,7 +7,34 @@ import DataURL from './data-url.jsx';
+ import FancyCheckbox from '../tw-fancy-checkbox/checkbox.jsx';
+ import {APP_NAME} from '../../lib/brand';
+ 
+-const LoadExtensionModal = props => (
++const LoadExtensionModal = props => {
++    const trustRemainingBox = props.onChangeTrustRemaining && (
++        <React.Fragment>
++            <label className={styles.unsandboxedContainer}>
++                <FancyCheckbox
++                    className={styles.unsandboxedCheckbox}
++                    checked={!!props.trustRemaining}
++                    onChange={props.onChangeTrustRemaining}
++                />
++                <FormattedMessage
++                    defaultMessage="Allow all other extensions in this project without sandbox"
++                    description="Part of modal asking for permission to automatically load custom extension"
++                    id="tw.loadExtension.trustRemaining"
++                />
++            </label>
++            {props.trustRemaining && (
++                <div className={styles.unsandboxedWarning}>
++                    <FormattedMessage
++                        // eslint-disable-next-line max-len
++                        defaultMessage="Every other extension this project loads will be allowed without asking and run without the sandbox."
++                        description="Part of modal asking for permission to automatically load custom extension"
++                        id="tw.loadExtension.trustRemainingWarning"
++                    />
++                </div>
++            )}
++        </React.Fragment>
++    );
++    return (
+     <div>
+         {props.url.startsWith('data:') ? (
+             <React.Fragment>
+@@ -43,6 +70,7 @@ const LoadExtensionModal = props => (
+                         id="tw.loadExtension.unsandboxed"
+                     />
+                 </label>
++                {trustRemainingBox}
+                 {props.unsandboxed && (
+                     <div className={styles.unsandboxedWarning}>
+                         <FormattedMessage
+@@ -58,6 +86,7 @@ const LoadExtensionModal = props => (
+                 )}
+             </React.Fragment>
+         )}
++        {!props.onChangeUnsandboxed && trustRemainingBox}
+         {!props.unsandboxed && (
+             <div className={styles.sandboxed}>
+                 <FormattedMessage
+@@ -69,12 +98,15 @@ const LoadExtensionModal = props => (
+             </div>
+         )}
+     </div>
+-);
++    );
++};
+ 
+ LoadExtensionModal.propTypes = {
+     url: PropTypes.string.isRequired,
+     unsandboxed: PropTypes.bool.isRequired,
+-    onChangeUnsandboxed: PropTypes.func
++    onChangeUnsandboxed: PropTypes.func,
++    trustRemaining: PropTypes.bool,
++    onChangeTrustRemaining: PropTypes.func
+ };
+ 
+ export default LoadExtensionModal;
+diff --git a/src/containers/tw-custom-extension-modal.jsx b/src/containers/tw-custom-extension-modal.jsx
+index 32bfffb..c4c76ea 100644
+--- a/src/containers/tw-custom-extension-modal.jsx
++++ b/src/containers/tw-custom-extension-modal.jsx
+@@ -7,7 +7,6 @@ import CustomExtensionModalComponent from '../components/tw-custom-extension-mod
+ import {closeCustomExtensionModal} from '../reducers/modals';
+ import {manuallyTrustExtension, isTrustedExtension} from './tw-security-manager.jsx';
+ import {getPersistedUnsandboxed, setPersistedUnsandboxed} from '../lib/tw-persisted-unsandboxed.js';
+-import {getTrustAllExtensions, setTrustAllExtensions} from '../lib/tw-trust-all-extensions.js';
+ 
+ /**
+  * @param {Blob} blob Blob
+@@ -37,8 +36,7 @@ class CustomExtensionModal extends React.Component {
+             'handleDragOver',
+             'handleDragLeave',
+             'handleDrop',
+-            'handleChangeUnsandboxed',
+-            'handleChangeTrustAll'
++            'handleChangeUnsandboxed'
+         ]);
+ 
+         this.state = {
+@@ -46,8 +44,7 @@ class CustomExtensionModal extends React.Component {
+             url: '',
+             files: null,
+             text: '',
+-            unsandboxed: getPersistedUnsandboxed(),
+-            trustAll: getTrustAllExtensions()
++            unsandboxed: getPersistedUnsandboxed()
+         };
+     }
+ 
+@@ -195,7 +192,7 @@ class CustomExtensionModal extends React.Component {
+ 
+     isUnsandboxed () {
+         if (this.state.type === 'url') {
+-            return isTrustedExtension(this.state.url) || this.state.trustAll;
++            return isTrustedExtension(this.state.url);
+         }
+         return this.state.unsandboxed;
+     }
+@@ -210,14 +207,6 @@ class CustomExtensionModal extends React.Component {
+         });
+     }
+ 
+-    handleChangeTrustAll (e) {
+-        // Applies immediately (not only on Load) so it is in effect before the next project is opened.
+-        setTrustAllExtensions(e.target.checked);
+-        this.setState({
+-            trustAll: e.target.checked
+-        });
+-    }
+-
+     render () {
+         return (
+             <CustomExtensionModalComponent
+@@ -238,8 +227,6 @@ class CustomExtensionModal extends React.Component {
+                 onChangeText={this.handleChangeText}
+                 unsandboxed={this.isUnsandboxed()}
+                 onChangeUnsandboxed={this.canChangeUnsandboxed() ? this.handleChangeUnsandboxed : null}
+-                trustAll={this.state.trustAll}
+-                onChangeTrustAll={this.handleChangeTrustAll}
+                 onLoadExtension={this.handleLoadExtension}
+                 onClose={this.handleClose}
+             />
+diff --git a/src/containers/tw-security-manager.jsx b/src/containers/tw-security-manager.jsx
+index e335bce..930c56b 100644
+--- a/src/containers/tw-security-manager.jsx
++++ b/src/containers/tw-security-manager.jsx
+@@ -6,7 +6,6 @@ import bindAll from 'lodash.bindall';
+ import SecurityManagerModal from '../components/tw-security-manager-modal/security-manager-modal.jsx';
+ import SecurityModals from '../lib/tw-security-manager-constants';
+ import {getPersistedUnsandboxed, setPersistedUnsandboxed} from '../lib/tw-persisted-unsandboxed.js';
+-import {getTrustAllExtensions} from '../lib/tw-trust-all-extensions.js';
+ 
+ /* eslint-disable require-atomic-updates */
+ 
+@@ -150,11 +149,16 @@ class TWSecurityManagerComponent extends React.Component {
+         super(props);
+         bindAll(this, [
+             'handleAllowed',
+-            'handleDenied'
++            'handleDenied',
++            'handleChangeTrustRemaining',
++            'handleRuntimeDisposed'
+         ]);
+         bindAll(this, SECURITY_MANAGER_METHODS);
+         this.nextModalCallbacks = [];
+         this.modalLocked = false;
++        // When true, every further extension the project asks to load is allowed and run without the sandbox.
++        // Reset whenever a new project starts loading.
++        this.trustRemainingExtensions = false;
+         this.state = {
+             type: null,
+             data: null,
+@@ -164,6 +168,7 @@ class TWSecurityManagerComponent extends React.Component {
+     }
+ 
+     componentDidMount () {
++        this.props.vm.runtime.on('RUNTIME_DISPOSED', this.handleRuntimeDisposed);
+         const vmSecurityManager = this.props.vm.extensionManager.securityManager;
+         const propsSecurityManager = this.props.securityManager;
+         for (const method of SECURITY_MANAGER_METHODS) {
+@@ -222,6 +227,34 @@ class TWSecurityManagerComponent extends React.Component {
+         };
+     }
+ 
++    handleRuntimeDisposed () {
++        this.trustRemainingExtensions = false;
++    }
++
++    handleChangeTrustRemaining (e) {
++        const checked = e.target.checked;
++        this.setState(oldState => ({
++            data: {
++                ...oldState.data,
++                trustRemaining: checked
++            }
++        }));
++    }
++
++    /**
++     * Allows and unsandboxes an extension without asking, if the user chose to trust the rest of the project.
++     * @param {string} url Extension URL
++     * @returns {boolean} True if the extension was automatically allowed
++     */
++    autoAllowIfTrustingRemaining (url) {
++        if (!this.trustRemainingExtensions) {
++            return false;
++        }
++        log.info(`Loading extension ${url} automatically without sandbox (trusting rest of project)`);
++        manuallyTrustExtension(url);
++        return true;
++    }
++
+     handleAllowed () {
+         this.state.callback(true);
+     }
+@@ -235,7 +268,7 @@ class TWSecurityManagerComponent extends React.Component {
+      * @returns {string} The VM worker mode to use
+      */
+     getSandboxMode (url) {
+-        if (isTrustedExtension(url) || getTrustAllExtensions()) {
++        if (isTrustedExtension(url)) {
+             log.info(`Loading extension ${url} unsandboxed`);
+             return 'unsandboxed';
+         }
+@@ -257,16 +290,26 @@ class TWSecurityManagerComponent extends React.Component {
+      * @returns {Promise<boolean>} Whether the extension can be loaded
+      */
+     async canLoadExtensionFromProject (url) {
+-        if (isTrustedExtension(url) || getTrustAllExtensions()) {
++        if (isTrustedExtension(url)) {
+             log.info(`Loading extension ${url} automatically`);
+             return true;
+         }
+-        const {showModal} = await this.acquireModalLock();
++        if (this.autoAllowIfTrustingRemaining(url)) {
++            return true;
++        }
++        const {showModal, releaseLock} = await this.acquireModalLock();
++        // The user may have chosen to trust the rest of the project while we were waiting for the lock.
++        if (this.autoAllowIfTrustingRemaining(url)) {
++            releaseLock();
++            return true;
++        }
+         if (url.startsWith('data:')) {
+             const allowed = await showModal(SecurityModals.LoadExtension, {
+                 url,
+                 unsandboxed: getPersistedUnsandboxed(),
+-                onChangeUnsandboxed: this.handleChangeUnsandboxed.bind(this)
++                onChangeUnsandboxed: this.handleChangeUnsandboxed.bind(this),
++                trustRemaining: false,
++                onChangeTrustRemaining: this.handleChangeTrustRemaining
+             });
+             if (allowed) {
+                 setPersistedUnsandboxed(this.state.data.unsandboxed);
+@@ -274,12 +317,21 @@ class TWSecurityManagerComponent extends React.Component {
+             if (allowed && this.state.data.unsandboxed) {
+                 manuallyTrustExtension(url);
+             }
++            if (allowed && this.state.data.trustRemaining) {
++                this.trustRemainingExtensions = true;
++            }
+             return allowed;
+         }
+-        return showModal(SecurityModals.LoadExtension, {
++        const allowed = await showModal(SecurityModals.LoadExtension, {
+             url,
+-            unsandboxed: false
++            unsandboxed: false,
++            trustRemaining: false,
++            onChangeTrustRemaining: this.handleChangeTrustRemaining
+         });
++        if (allowed && this.state.data.trustRemaining) {
++            this.trustRemainingExtensions = true;
++        }
++        return allowed;
+     }
+ 
+     /**
+diff --git a/src/lib/tw-trust-all-extensions.js b/src/lib/tw-trust-all-extensions.js
+deleted file mode 100644
+index 0cdebc7..0000000
+--- a/src/lib/tw-trust-all-extensions.js
++++ /dev/null
+@@ -1,32 +0,0 @@
+-// When enabled, every extension is loaded without the sandbox and without a permission prompt,
+-// including extensions that come from projects. This is dangerous; the user opts in via the
+-// custom extension modal. Persisted so it survives restarts.
+-
+-const KEY = 'tw:trust_all_extensions';
+-
+-let cached = null;
+-
+-const getTrustAllExtensions = () => {
+-    if (cached === null) {
+-        try {
+-            cached = localStorage.getItem(KEY) === 'true';
+-        } catch (e) {
+-            cached = false;
+-        }
+-    }
+-    return cached;
+-};
+-
+-const setTrustAllExtensions = enabled => {
+-    cached = enabled === true;
+-    try {
+-        localStorage.setItem(KEY, cached);
+-    } catch (e) {
+-        // ignore
+-    }
+-};
+-
+-export {
+-    getTrustAllExtensions,
+-    setTrustAllExtensions
+-};

@@ -7,7 +7,34 @@ import DataURL from './data-url.jsx';
 import FancyCheckbox from '../tw-fancy-checkbox/checkbox.jsx';
 import {APP_NAME} from '../../lib/brand';
 
-const LoadExtensionModal = props => (
+const LoadExtensionModal = props => {
+    const trustRemainingBox = props.onChangeTrustRemaining && (
+        <React.Fragment>
+            <label className={styles.unsandboxedContainer}>
+                <FancyCheckbox
+                    className={styles.unsandboxedCheckbox}
+                    checked={!!props.trustRemaining}
+                    onChange={props.onChangeTrustRemaining}
+                />
+                <FormattedMessage
+                    defaultMessage="Allow all other extensions in this project without sandbox"
+                    description="Part of modal asking for permission to automatically load custom extension"
+                    id="tw.loadExtension.trustRemaining"
+                />
+            </label>
+            {props.trustRemaining && (
+                <div className={styles.unsandboxedWarning}>
+                    <FormattedMessage
+                        // eslint-disable-next-line max-len
+                        defaultMessage="Every other extension this project loads will be allowed without asking and run without the sandbox."
+                        description="Part of modal asking for permission to automatically load custom extension"
+                        id="tw.loadExtension.trustRemainingWarning"
+                    />
+                </div>
+            )}
+        </React.Fragment>
+    );
+    return (
     <div>
         {props.url.startsWith('data:') ? (
             <React.Fragment>
@@ -43,6 +70,7 @@ const LoadExtensionModal = props => (
                         id="tw.loadExtension.unsandboxed"
                     />
                 </label>
+                {trustRemainingBox}
                 {props.unsandboxed && (
                     <div className={styles.unsandboxedWarning}>
                         <FormattedMessage
@@ -58,6 +86,7 @@ const LoadExtensionModal = props => (
                 )}
             </React.Fragment>
         )}
+        {!props.onChangeUnsandboxed && trustRemainingBox}
         {!props.unsandboxed && (
             <div className={styles.sandboxed}>
                 <FormattedMessage
@@ -69,12 +98,15 @@ const LoadExtensionModal = props => (
             </div>
         )}
     </div>
-);
+    );
+};
 
 LoadExtensionModal.propTypes = {
     url: PropTypes.string.isRequired,
     unsandboxed: PropTypes.bool.isRequired,
-    onChangeUnsandboxed: PropTypes.func
+    onChangeUnsandboxed: PropTypes.func,
+    trustRemaining: PropTypes.bool,
+    onChangeTrustRemaining: PropTypes.func
 };
 
 export default LoadExtensionModal;
