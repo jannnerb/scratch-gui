@@ -7,6 +7,7 @@ import CustomExtensionModalComponent from '../components/tw-custom-extension-mod
 import {closeCustomExtensionModal} from '../reducers/modals';
 import {manuallyTrustExtension, isTrustedExtension} from './tw-security-manager.jsx';
 import {getPersistedUnsandboxed, setPersistedUnsandboxed} from '../lib/tw-persisted-unsandboxed.js';
+import {getTrustAllExtensions, setTrustAllExtensions} from '../lib/tw-trust-all-extensions.js';
 
 /**
  * @param {Blob} blob Blob
@@ -36,7 +37,8 @@ class CustomExtensionModal extends React.Component {
             'handleDragOver',
             'handleDragLeave',
             'handleDrop',
-            'handleChangeUnsandboxed'
+            'handleChangeUnsandboxed',
+            'handleChangeTrustAll'
         ]);
 
         this.state = {
@@ -44,7 +46,8 @@ class CustomExtensionModal extends React.Component {
             url: '',
             files: null,
             text: '',
-            unsandboxed: getPersistedUnsandboxed()
+            unsandboxed: getPersistedUnsandboxed(),
+            trustAll: getTrustAllExtensions()
         };
     }
 
@@ -192,7 +195,7 @@ class CustomExtensionModal extends React.Component {
 
     isUnsandboxed () {
         if (this.state.type === 'url') {
-            return isTrustedExtension(this.state.url);
+            return isTrustedExtension(this.state.url) || this.state.trustAll;
         }
         return this.state.unsandboxed;
     }
@@ -204,6 +207,14 @@ class CustomExtensionModal extends React.Component {
     handleChangeUnsandboxed (e) {
         this.setState({
             unsandboxed: e.target.checked
+        });
+    }
+
+    handleChangeTrustAll (e) {
+        // Applies immediately (not only on Load) so it is in effect before the next project is opened.
+        setTrustAllExtensions(e.target.checked);
+        this.setState({
+            trustAll: e.target.checked
         });
     }
 
@@ -227,6 +238,8 @@ class CustomExtensionModal extends React.Component {
                 onChangeText={this.handleChangeText}
                 unsandboxed={this.isUnsandboxed()}
                 onChangeUnsandboxed={this.canChangeUnsandboxed() ? this.handleChangeUnsandboxed : null}
+                trustAll={this.state.trustAll}
+                onChangeTrustAll={this.handleChangeTrustAll}
                 onLoadExtension={this.handleLoadExtension}
                 onClose={this.handleClose}
             />

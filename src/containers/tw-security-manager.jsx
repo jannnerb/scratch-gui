@@ -6,6 +6,7 @@ import bindAll from 'lodash.bindall';
 import SecurityManagerModal from '../components/tw-security-manager-modal/security-manager-modal.jsx';
 import SecurityModals from '../lib/tw-security-manager-constants';
 import {getPersistedUnsandboxed, setPersistedUnsandboxed} from '../lib/tw-persisted-unsandboxed.js';
+import {getTrustAllExtensions} from '../lib/tw-trust-all-extensions.js';
 
 /* eslint-disable require-atomic-updates */
 
@@ -234,7 +235,7 @@ class TWSecurityManagerComponent extends React.Component {
      * @returns {string} The VM worker mode to use
      */
     getSandboxMode (url) {
-        if (isTrustedExtension(url)) {
+        if (isTrustedExtension(url) || getTrustAllExtensions()) {
             log.info(`Loading extension ${url} unsandboxed`);
             return 'unsandboxed';
         }
@@ -256,7 +257,7 @@ class TWSecurityManagerComponent extends React.Component {
      * @returns {Promise<boolean>} Whether the extension can be loaded
      */
     async canLoadExtensionFromProject (url) {
-        if (isTrustedExtension(url)) {
+        if (isTrustedExtension(url) || getTrustAllExtensions()) {
             log.info(`Loading extension ${url} automatically`);
             return true;
         }
