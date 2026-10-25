@@ -14,6 +14,7 @@ import {
     projectError
 } from '../reducers/project-state';
 import log from './log';
+import installExtensionWipe from './tw-wipe-extensions';
 
 /**
  * List of fonts that could be used by security prompts.
@@ -49,6 +50,7 @@ const vmManagerHOC = function (WrappedComponent) {
                 for (const font of SECURITY_CRITICAL_FONTS) {
                     this.props.vm.runtime.fontManager.restrictFont(font);
                 }
+                installExtensionWipe(this.props.vm);
                 this.props.vm.initialized = true;
                 this.props.vm.setLocale(this.props.locale, this.props.messages);
             }
