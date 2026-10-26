@@ -6,6 +6,7 @@ import PropTypes from 'prop-types';
 import React from 'react';
 import {intlShape, injectIntl, defineMessages} from 'react-intl';
 import VMScratchBlocks from '../lib/blocks';
+import consolidateVariables from '../lib/consolidate-variables';
 import VM from 'scratch-vm';
 
 import log from '../lib/log.js';
@@ -181,6 +182,37 @@ class Blocks extends React.Component {
         toolboxWorkspace.registerButtonCallback('MAKE_A_VARIABLE', varListButtonCallback(''));
         toolboxWorkspace.registerButtonCallback('MAKE_A_LIST', varListButtonCallback('list'));
         toolboxWorkspace.registerButtonCallback('MAKE_A_PROCEDURE', procButtonCallback);
+        toolboxWorkspace.registerButtonCallback('CONSOLIDATE_VARIABLES', () => {
+            if (!confirm(
+                'Convert every global variable that is only edited by one sprite into that sprite\'s ' +
+                '"for this sprite only" variable?\n\nReads from other sprites become "[variable] of [sprite]". ' +
+                'This cannot be undone, so save first. Continue?'
+            )) return;
+            const {converted, skipped} = consolidateVariables(this.props.vm);
+            let message = `Converted ${converted.length} variable(s).`;
+            if (skipped.length) {
+                message += `\n\nLeft global (${skipped.length}):\n` +
+                    skipped.slice(0, 20).map(s => `- ${s.name}: ${s.reason}`).join('\n');
+            }
+            alert(message);
+        });
+        // Append a "Consolidate variables" button right before the list section of the Variables flyout
+        const originalGetCategoryCallback = this.workspace.getToolboxCategoryCallback.bind(this.workspace);
+        this.workspace.getToolboxCategoryCallback = key => {
+            const callback = originalGetCategoryCallback(key);
+            if (key !== 'VARIABLE' || !callback) return callback;
+            return workspace => {
+                const xmlList = callback(workspace);
+                const button = document.createElement('button');
+                button.setAttribute('text', 'Consolidate variables');
+                button.setAttribute('callbackKey', 'CONSOLIDATE_VARIABLES');
+                const listButtonIndex = xmlList.findIndex(el => el.tagName &&
+                    el.tagName.toLowerCase() === 'button' && el.getAttribute('callbackKey') === 'CREATE_LIST');
+                if (listButtonIndex === -1) xmlList.push(button);
+                else xmlList.splice(listButtonIndex, 0, button);
+                return xmlList;
+            };
+        };
         toolboxWorkspace.registerButtonCallback('EXTENSION_CALLBACK', block => {
             this.props.vm.handleExtensionButtonPress(block.callbackData_);
         });
